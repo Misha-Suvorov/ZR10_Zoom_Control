@@ -14,10 +14,8 @@ public:
     ZR10ZoomControl();
     ~ZR10ZoomControl();
 
-    // встановлює зум до цільового значення (1.0–30.0)
     void setZoomPosition(float zoom);
 
-    // можна задати вручну, якщо відомо поточне положення
     void setCurrentZoomKnown(float zoom);
 
 private:
@@ -32,16 +30,13 @@ private:
     uint16_t CRC16_cal(uint8_t *ptr, uint32_t len, uint16_t crc_init);
     uint8_t crc_check_16bites(uint8_t *pbuf, uint32_t len, uint32_t *p_result);
 
-    // надсилання команд
     void sendCommand(uint8_t cmd_id, const std::vector<uint8_t> &payload);
     void sendAutoFocus();
     void sendZoomStop();
     void sendAbsoluteZoomCmdOnly(float zoomVal);
 
-    // допоміжні функції
     std::pair<float,int> computeStepAndDelay(float zoomVal);
 
-    // отримає реальне значення зуму з камери (через 0x18)
     bool queryZoomFromCamera(float &zoomOut);
 };
 

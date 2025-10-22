@@ -65,7 +65,7 @@ uint8_t ZR10ZoomControl::crc_check_16bites(uint8_t *pbuf, uint32_t len, uint32_t
     return 2;
 }
 
-// ---- Відправка UDP ----
+//UDP sendings
 void ZR10ZoomControl::sendCommand(uint8_t cmd_id, const std::vector<uint8_t> &payload)
 {
     std::vector<uint8_t> buf = {0x55,0x66,0x01,0x02,0x00,0x00,0x00,cmd_id};
@@ -96,7 +96,7 @@ void ZR10ZoomControl::sendZoomStop()
     qDebug() << "Sent Zoom STOP command";
 }
 
-// ---- Крок ----
+// ---- Step ----
 std::pair<float,int> ZR10ZoomControl::computeStepAndDelay(float zoomVal)
 {
     if (zoomVal < 10.0f)
@@ -174,7 +174,6 @@ void ZR10ZoomControl::setZoomPosition(float targetZoom)
     targetZoom = std::clamp(targetZoom, 1.0f, 30.0f);
     float realZoom;
 
-    // 1️⃣ спочатку отримуємо реальне положення
     if (queryZoomFromCamera(realZoom)) {
         currentZoom = realZoom;
         initialized = true;
