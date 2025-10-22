@@ -123,7 +123,6 @@ void ZR10ZoomControl::sendAbsoluteZoomCmdOnly(float zoomVal)
     currentZoom = zoomVal;
 }
 
-// ---- Отримати поточний зум з камери ----
 bool ZR10ZoomControl::queryZoomFromCamera(float &zoomOut)
 {
     uint8_t command[] = {0x55,0x66,0x01,0x00,0x00,0x00,0x00,0x18};
@@ -160,7 +159,6 @@ bool ZR10ZoomControl::queryZoomFromCamera(float &zoomOut)
     return false;
 }
 
-// ---- Встановити поточний зум ----
 void ZR10ZoomControl::setCurrentZoomKnown(float zoom)
 {
     currentZoom = std::clamp(zoom, 1.0f, 30.0f);
@@ -168,7 +166,6 @@ void ZR10ZoomControl::setCurrentZoomKnown(float zoom)
     qDebug() << "Current zoom manually set to" << currentZoom;
 }
 
-// ---- Головна функція ----
 void ZR10ZoomControl::setZoomPosition(float targetZoom)
 {
     targetZoom = std::clamp(targetZoom, 1.0f, 30.0f);
