@@ -65,7 +65,7 @@ uint8_t ZR10ZoomControl::crc_check_16bites(uint8_t *pbuf, uint32_t len, uint32_t
     return 2;
 }
 
-//UDP sendings
+// ---- sendCommand ----
 void ZR10ZoomControl::sendCommand(uint8_t cmd_id, const std::vector<uint8_t> &payload)
 {
     std::vector<uint8_t> buf = {0x55,0x66,0x01,0x02,0x00,0x00,0x00,cmd_id};
@@ -81,7 +81,7 @@ void ZR10ZoomControl::sendCommand(uint8_t cmd_id, const std::vector<uint8_t> &pa
     sock.writeDatagram(packet, addr, sendPort);
 }
 
-// ---- AutoFocus ----
+// ---- AutoFocus  ----
 void ZR10ZoomControl::sendAutoFocus()
 {
     std::vector<uint8_t> payload = {1,0,0,0,0};
@@ -90,18 +90,18 @@ void ZR10ZoomControl::sendAutoFocus()
 }
 
 
-// ---- STOP ----
+// ---- STOP  ----
 void ZR10ZoomControl::sendZoomStop()
 {
     sendCommand(0x10, {});
     qDebug() << "Sent Zoom STOP command";
 }
 
-// ---- Step ----
+// ---- Step  ----
 std::pair<float,int> ZR10ZoomControl::computeStepAndDelay(float zoomVal)
 {
     if (zoomVal < 10.0f)
-        return {0.3f, 1200};
+        return {0.1f, 1000};
     else if (zoomVal < 20.0f)
         return {0.5f, 400};
     else if (zoomVal < 25.0f)
@@ -110,7 +110,7 @@ std::pair<float,int> ZR10ZoomControl::computeStepAndDelay(float zoomVal)
         return {1.0f, 600};
 }
 
-// ---- ABS ----
+// ---- ABS  ----
 void ZR10ZoomControl::sendAbsoluteZoomCmdOnly(float zoomVal)
 {
     zoomVal = std::clamp(zoomVal, 1.0f, 30.0f);
@@ -124,7 +124,6 @@ void ZR10ZoomControl::sendAbsoluteZoomCmdOnly(float zoomVal)
     currentZoom = zoomVal;
 }
 
-// ---- Отримати поточний зум з камери ----
 bool ZR10ZoomControl::queryZoomFromCamera(float &zoomOut)
 {
     uint8_t command[] = {0x55,0x66,0x01,0x00,0x00,0x00,0x00,0x18};
@@ -161,7 +160,6 @@ bool ZR10ZoomControl::queryZoomFromCamera(float &zoomOut)
     return false;
 }
 
-// ---- Встановити поточний зум ----
 void ZR10ZoomControl::setCurrentZoomKnown(float zoom)
 {
     currentZoom = std::clamp(zoom, 1.0f, 30.0f);
@@ -169,7 +167,6 @@ void ZR10ZoomControl::setCurrentZoomKnown(float zoom)
     qDebug() << "Current zoom manually set to" << currentZoom;
 }
 
-// ---- Головна функція ----
 void ZR10ZoomControl::setZoomPosition(float targetZoom)
 {
     targetZoom = std::clamp(targetZoom, 1.0f, 30.0f);
@@ -210,4 +207,55 @@ void ZR10ZoomControl::setZoomPosition(float targetZoom)
         qDebug() << "Warning: reached MAX_STEPS without exact convergence. currentZoom =" << currentZoom;
     else
         qDebug() << "Zoom position reached:" << currentZoom << "in" << steps << "steps";
+}
+
+
+
+void ZR10ZoomControl::triggerAutoFocus()
+{
+    sendAutoFocus();
+}
+
+
+void ZR10ZoomControl::sendManualFocusCmd(int8_t focusVal)
+{
+    // STX(2), CTRL(1), DataLen(2), SEQ(2), CMD_ID(1), DATA(1)
+    uint8_t command[] = {
+        0x55, 0x66,             // STX
+        0x01,                   // CTRL
+        0x01, 0x00,             // DataLen = 1
+        0x00, 0x00,             // SEQ
+        0x06,                   // CMD_ID
+        (uint8_t)focusVal       // DATA (1 байт)
+    };
+
+    uint32_t crc_result;
+    crc_check_16bites(command, sizeof(command), &crc_result);
+
+    QByteArray packet(reinterpret_cast<const char*>(command), sizeof(command));
+    packet.append((char)(crc_result & 0xFF));
+    packet.append((char)((crc_result >> 8) & 0xFF));
+
+    sock.writeDatagram(packet, addr, sendPort);
+}
+
+
+void ZR10ZoomControl::startManualFocusFar()
+{
+    sendManualFocusCmd(1); // 1 = Far focus
+    qDebug() << "Sent Manual Focus FAR command (0x06, 1)";
+}
+
+
+void ZR10ZoomControl::startManualFocusNear()
+{
+    sendManualFocusCmd(-1); // -1 = Near focus
+    qDebug() << "Sent Manual Focus NEAR command (0x06, -1)";
+}
+
+
+void ZR10ZoomControl::stopManualFocus()
+{
+    sendManualFocusCmd(0); // 0 = Stop focusing
+    qDebug() << "Sent Manual Focus STOP command (0x06, 0)";
 }
