@@ -17,9 +17,8 @@ int main(int argc, char *argv[])
 
     ZR10ZoomControl zoom;
 
-    // Просто задаємо позицію зуму
     //zoom.setZoomPosition(30.0f);
-    zoom.setZoomPosition(9.0f);
+    zoom.setZoomPosition(19.0f);
 
     return a.exec();
 }
