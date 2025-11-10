@@ -1,7 +1,7 @@
 #include <QCoreApplication>
-#include <QTimer>   // Додано для таймерів
-#include <QThread>  // Додано для QThread::msleep
-#include <QDebug>   // Додано для qDebug
+#include <QTimer>
+#include <QThread>
+#include <QDebug>
 #include "zr10_zoom_control.h"
 
 int main(int argc, char *argv[])
@@ -11,7 +11,8 @@ int main(int argc, char *argv[])
     ZR10ZoomControl zoom;
 
     qDebug() << "[TEST 1]";
-    zoom.setZoomPosition(19.0f);
+    zoom.setZoomPosition(1.0f);
+    zoom.triggerAutoFocus();
     QThread::msleep(3000);
 
     qDebug() << "[TEST 2] focus near";

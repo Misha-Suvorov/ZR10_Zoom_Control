@@ -101,7 +101,7 @@ void ZR10ZoomControl::sendZoomStop()
 std::pair<float,int> ZR10ZoomControl::computeStepAndDelay(float zoomVal)
 {
     if (zoomVal < 10.0f)
-        return {0.1f, 1000};
+        return {0.2f, 3000};
     else if (zoomVal < 20.0f)
         return {0.5f, 400};
     else if (zoomVal < 25.0f)
