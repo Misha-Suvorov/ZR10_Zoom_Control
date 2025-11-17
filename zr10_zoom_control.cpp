@@ -253,7 +253,6 @@ void ZR10ZoomControl::stopManualFocus()
     qDebug() << "Sent Manual Focus STOP command (0x06, 0)";
 }
 
-// ---- NEW: запуск setZoomPosition у потоці ----
 void ZR10ZoomControl::startZoomInThread(float zoomVal)
 {
     QThread* thread = new QThread;

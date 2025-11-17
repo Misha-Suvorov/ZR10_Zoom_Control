@@ -22,7 +22,6 @@ public:
     void startManualFocusNear();
     void stopManualFocus();
 
-    // --- NEW ---
     void startZoomInThread(float zoomVal);
 
 private:
