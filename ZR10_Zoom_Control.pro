@@ -23,6 +23,9 @@ DEPENDPATH += C:\Qt\6.7.3\msvc2019_64\include\QtCore
 INCLUDEPATH += C:\Qt\6.7.3\msvc2019_64\include\QtNetwork
 DEPENDPATH += C:\Qt\6.7.3\msvc2019_64\include\QtNetwork
 
+INCLUDEPATH += C:/Qt/6.7.3/msvc2019_64/include/QtConcurrent
+DEPENDPATH  += C:/Qt/6.7.3/msvc2019_64/include/QtConcurrent
+
 
 INCLUDEPATH += C:\c_library_v2-master\c_library_v2-master
 DEPENDPATH += C:\c_library_v2-master\c_library_v2-master
@@ -41,4 +44,5 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
-    zr10_zoom_control.h
+    zr10_zoom_control.h \
+    zr10_zoom_control_worker.h

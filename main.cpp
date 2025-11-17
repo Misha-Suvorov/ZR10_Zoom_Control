@@ -11,7 +11,9 @@ int main(int argc, char *argv[])
     ZR10ZoomControl zoom;
 
     qDebug() << "[TEST 1]";
-    zoom.setZoomPosition(1.0f);
+    //zoom.setZoomPosition(30.0f);
+    zoom.startZoomInThread(15.0f);
+
     zoom.triggerAutoFocus();
     QThread::msleep(3000);
 
@@ -34,7 +36,7 @@ int main(int argc, char *argv[])
     qDebug() << "[TEST 4] End";
 
 
-    QTimer::singleShot(5000, &a, &QCoreApplication::quit);
+    //QTimer::singleShot(5000, &a, &QCoreApplication::quit);
 
     return a.exec();
 }

@@ -1,4 +1,5 @@
 #include "zr10_zoom_control.h"
+#include "zr10_zoom_control_worker.h"
 #include <QDebug>
 #include <cmath>
 
@@ -81,7 +82,7 @@ void ZR10ZoomControl::sendCommand(uint8_t cmd_id, const std::vector<uint8_t> &pa
     sock.writeDatagram(packet, addr, sendPort);
 }
 
-// ---- AutoFocus  ----
+// ---- AutoFocus ----
 void ZR10ZoomControl::sendAutoFocus()
 {
     std::vector<uint8_t> payload = {1,0,0,0,0};
@@ -89,15 +90,14 @@ void ZR10ZoomControl::sendAutoFocus()
     qDebug() << "Sent Auto Focus command";
 }
 
-
-// ---- STOP  ----
+// ---- STOP ----
 void ZR10ZoomControl::sendZoomStop()
 {
     sendCommand(0x10, {});
     qDebug() << "Sent Zoom STOP command";
 }
 
-// ---- Step  ----
+// ---- Step ----
 std::pair<float,int> ZR10ZoomControl::computeStepAndDelay(float zoomVal)
 {
     if (zoomVal < 10.0f)
@@ -110,7 +110,7 @@ std::pair<float,int> ZR10ZoomControl::computeStepAndDelay(float zoomVal)
         return {1.0f, 600};
 }
 
-// ---- ABS  ----
+// ---- ABS ----
 void ZR10ZoomControl::sendAbsoluteZoomCmdOnly(float zoomVal)
 {
     zoomVal = std::clamp(zoomVal, 1.0f, 30.0f);
@@ -209,24 +209,20 @@ void ZR10ZoomControl::setZoomPosition(float targetZoom)
         qDebug() << "Zoom position reached:" << currentZoom << "in" << steps << "steps";
 }
 
-
-
 void ZR10ZoomControl::triggerAutoFocus()
 {
     sendAutoFocus();
 }
 
-
 void ZR10ZoomControl::sendManualFocusCmd(int8_t focusVal)
 {
-    // STX(2), CTRL(1), DataLen(2), SEQ(2), CMD_ID(1), DATA(1)
     uint8_t command[] = {
-        0x55, 0x66,             // STX
-        0x01,                   // CTRL
-        0x01, 0x00,             // DataLen = 1
-        0x00, 0x00,             // SEQ
-        0x06,                   // CMD_ID
-        (uint8_t)focusVal       // DATA (1 байт)
+        0x55, 0x66,
+        0x01,
+        0x01, 0x00,
+        0x00, 0x00,
+        0x06,
+        (uint8_t)focusVal
     };
 
     uint32_t crc_result;
@@ -239,23 +235,39 @@ void ZR10ZoomControl::sendManualFocusCmd(int8_t focusVal)
     sock.writeDatagram(packet, addr, sendPort);
 }
 
-
 void ZR10ZoomControl::startManualFocusFar()
 {
-    sendManualFocusCmd(1); // 1 = Far focus
+    sendManualFocusCmd(1);
     qDebug() << "Sent Manual Focus FAR command (0x06, 1)";
 }
 
-
 void ZR10ZoomControl::startManualFocusNear()
 {
-    sendManualFocusCmd(-1); // -1 = Near focus
+    sendManualFocusCmd(-1);
     qDebug() << "Sent Manual Focus NEAR command (0x06, -1)";
 }
 
-
 void ZR10ZoomControl::stopManualFocus()
 {
-    sendManualFocusCmd(0); // 0 = Stop focusing
+    sendManualFocusCmd(0);
     qDebug() << "Sent Manual Focus STOP command (0x06, 0)";
 }
+
+// ---- NEW: запуск setZoomPosition у потоці ----
+void ZR10ZoomControl::startZoomInThread(float zoomVal)
+{
+    QThread* thread = new QThread;
+    ZR10ZoomWorker* worker = new ZR10ZoomWorker(this);
+
+    worker->targetZoom = zoomVal;
+    worker->moveToThread(thread);
+
+    QObject::connect(thread, &QThread::started, worker, &ZR10ZoomWorker::runZoom);
+    QObject::connect(worker, &ZR10ZoomWorker::finished, thread, &QThread::quit);
+    QObject::connect(worker, &ZR10ZoomWorker::finished, worker, &QObject::deleteLater);
+    QObject::connect(thread, &QThread::finished, thread, &QThread::deleteLater);
+
+    thread->start();
+    qDebug() << " Started zoom thread for target =" << zoomVal;
+}
+

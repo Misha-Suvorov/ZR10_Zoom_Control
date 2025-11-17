@@ -15,14 +15,15 @@ public:
     ~ZR10ZoomControl();
 
     void setZoomPosition(float zoom);
-
     void setCurrentZoomKnown(float zoom);
-
 
     void triggerAutoFocus();
     void startManualFocusFar();
     void startManualFocusNear();
     void stopManualFocus();
+
+    // --- NEW ---
+    void startZoomInThread(float zoomVal);
 
 private:
     QUdpSocket sock;
@@ -32,20 +33,14 @@ private:
     float currentZoom;
     bool initialized;
 
-    // CRC
     uint16_t CRC16_cal(uint8_t *ptr, uint32_t len, uint16_t crc_init);
     uint8_t crc_check_16bites(uint8_t *pbuf, uint32_t len, uint32_t *p_result);
-
     void sendCommand(uint8_t cmd_id, const std::vector<uint8_t> &payload);
     void sendAutoFocus();
     void sendZoomStop();
     void sendAbsoluteZoomCmdOnly(float zoomVal);
-
     std::pair<float,int> computeStepAndDelay(float zoomVal);
-
     bool queryZoomFromCamera(float &zoomOut);
-
-
     void sendManualFocusCmd(int8_t focusVal);
 };
 
