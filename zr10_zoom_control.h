@@ -23,6 +23,7 @@ public:
     void stopManualFocus();
 
     void startZoomInThread(float zoomVal);
+    void stopActiveZoom();
 
 private:
     QUdpSocket sock;
@@ -31,6 +32,9 @@ private:
     quint16 recvPort;
     float currentZoom;
     bool initialized;
+
+    bool abortZoom = false;
+    QThread* activeZoomThread = nullptr;
 
     uint16_t CRC16_cal(uint8_t *ptr, uint32_t len, uint16_t crc_init);
     uint8_t crc_check_16bites(uint8_t *pbuf, uint32_t len, uint32_t *p_result);

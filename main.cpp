@@ -12,10 +12,15 @@ int main(int argc, char *argv[])
 
     qDebug() << "[TEST 1]";
     //zoom.setZoomPosition(30.0f);
-    zoom.startZoomInThread(15.0f);
+    zoom.startZoomInThread(10.0f);
 
     zoom.triggerAutoFocus();
-    QThread::msleep(3000);
+    QThread::msleep(300);
+
+    zoom.startZoomInThread(15.0f);
+    zoom.triggerAutoFocus();
+    QThread::msleep(5000);
+
 
     qDebug() << "[TEST 2] focus near";
     zoom.startManualFocusNear();

@@ -40,15 +40,54 @@ static const uint16_t crc16_tab[256] = {
 };
 
 ZR10ZoomControl::ZR10ZoomControl()
-    : addr("192.168.144.25"), sendPort(37260), recvPort(37262),
-    currentZoom(0.0f), initialized(false)
+    : addr("192.168.144.25"),
+    sendPort(37260),
+    recvPort(37262),
+    currentZoom(0.0f),
+    initialized(false)
 {
     sock.bind(QHostAddress::AnyIPv4, recvPort);
 }
 
 ZR10ZoomControl::~ZR10ZoomControl() {}
 
-// ---- CRC ----
+
+void ZR10ZoomControl::stopActiveZoom()
+{
+    abortZoom = true;
+
+    if (activeZoomThread) {
+        activeZoomThread->quit();
+        activeZoomThread->wait();
+        activeZoomThread = nullptr;
+    }
+
+    abortZoom = false;
+}
+
+
+void ZR10ZoomControl::startZoomInThread(float zoomVal)
+{
+    stopActiveZoom();
+
+    QThread* thread = new QThread;
+    ZR10ZoomWorker* worker = new ZR10ZoomWorker(this);
+
+    worker->targetZoom = zoomVal;
+    worker->moveToThread(thread);
+
+    QObject::connect(thread, &QThread::started, worker, &ZR10ZoomWorker::runZoom);
+    QObject::connect(worker, &ZR10ZoomWorker::finished, thread, &QThread::quit);
+    QObject::connect(worker, &ZR10ZoomWorker::finished, worker, &QObject::deleteLater);
+    QObject::connect(thread, &QThread::finished, thread, &QThread::deleteLater);
+
+    activeZoomThread = thread;
+    thread->start();
+
+    qDebug() << "Started zoom thread for target =" << zoomVal;
+}
+
+
 uint16_t ZR10ZoomControl::CRC16_cal(uint8_t *ptr, uint32_t len, uint16_t crc_init)
 {
     uint16_t crc = crc_init;
@@ -66,7 +105,6 @@ uint8_t ZR10ZoomControl::crc_check_16bites(uint8_t *pbuf, uint32_t len, uint32_t
     return 2;
 }
 
-// ---- sendCommand ----
 void ZR10ZoomControl::sendCommand(uint8_t cmd_id, const std::vector<uint8_t> &payload)
 {
     std::vector<uint8_t> buf = {0x55,0x66,0x01,0x02,0x00,0x00,0x00,cmd_id};
@@ -82,22 +120,17 @@ void ZR10ZoomControl::sendCommand(uint8_t cmd_id, const std::vector<uint8_t> &pa
     sock.writeDatagram(packet, addr, sendPort);
 }
 
-// ---- AutoFocus ----
 void ZR10ZoomControl::sendAutoFocus()
 {
     std::vector<uint8_t> payload = {1,0,0,0,0};
     sendCommand(0x04, payload);
-    qDebug() << "Sent Auto Focus command";
 }
 
-// ---- STOP ----
 void ZR10ZoomControl::sendZoomStop()
 {
     sendCommand(0x10, {});
-    qDebug() << "Sent Zoom STOP command";
 }
 
-// ---- Step ----
 std::pair<float,int> ZR10ZoomControl::computeStepAndDelay(float zoomVal)
 {
     if (zoomVal < 10.0f)
@@ -110,32 +143,29 @@ std::pair<float,int> ZR10ZoomControl::computeStepAndDelay(float zoomVal)
         return {1.0f, 600};
 }
 
-// ---- ABS ----
 void ZR10ZoomControl::sendAbsoluteZoomCmdOnly(float zoomVal)
 {
     zoomVal = std::clamp(zoomVal, 1.0f, 30.0f);
     int intPart = static_cast<int>(zoomVal);
     int fracPart = static_cast<int>(std::round((zoomVal - intPart) * 10.0f));
-    if (fracPart == 10) { intPart += 1; fracPart = 0; }
+    if (fracPart == 10) { intPart++; fracPart = 0; }
 
     std::vector<uint8_t> payload = { (uint8_t)intPart, (uint8_t)fracPart };
     sendCommand(0x0F, payload);
-    qDebug().noquote() << QString("Sent ABS zoom %1.%2").arg(intPart).arg(fracPart);
     currentZoom = zoomVal;
 }
 
 bool ZR10ZoomControl::queryZoomFromCamera(float &zoomOut)
 {
-    uint8_t command[] = {0x55,0x66,0x01,0x00,0x00,0x00,0x00,0x18};
+    uint8_t cmd[] = {0x55,0x66,0x01,0x00,0x00,0x00,0x00,0x18};
     uint32_t crc_result;
-    crc_check_16bites(command, sizeof(command), &crc_result);
+    crc_check_16bites(cmd, sizeof(cmd), &crc_result);
 
-    QByteArray packet(reinterpret_cast<const char*>(command), sizeof(command));
+    QByteArray packet(reinterpret_cast<const char*>(cmd), sizeof(cmd));
     packet.append((char)(crc_result & 0xFF));
     packet.append((char)((crc_result >> 8) & 0xFF));
 
     sock.writeDatagram(packet, addr, sendPort);
-    qDebug() << "Sent zoom request (0x18)";
 
     QElapsedTimer timer;
     timer.start();
@@ -146,17 +176,12 @@ bool ZR10ZoomControl::queryZoomFromCamera(float &zoomOut)
             sock.readDatagram(data.data(), data.size());
 
             if (data.size() >= 10 && (uint8_t)data[7] == 0x18) {
-                uint8_t zoomInt = (uint8_t)data[8];
-                uint8_t zoomFrac = (uint8_t)data[9];
-                zoomOut = zoomInt + zoomFrac / 10.0f;
-                qDebug() << "Received real zoom value:" << zoomOut;
+                zoomOut = (uint8_t)data[8] + ((uint8_t)data[9]) / 10.0f;
                 return true;
             }
         }
         QThread::msleep(20);
     }
-
-    qDebug() << "Zoom query timeout — no reply from camera";
     return false;
 }
 
@@ -164,49 +189,44 @@ void ZR10ZoomControl::setCurrentZoomKnown(float zoom)
 {
     currentZoom = std::clamp(zoom, 1.0f, 30.0f);
     initialized = true;
-    qDebug() << "Current zoom manually set to" << currentZoom;
 }
 
 void ZR10ZoomControl::setZoomPosition(float targetZoom)
 {
+    if (abortZoom) return;
+
     targetZoom = std::clamp(targetZoom, 1.0f, 30.0f);
     float realZoom;
 
     if (queryZoomFromCamera(realZoom)) {
         currentZoom = realZoom;
         initialized = true;
-    } else {
-        qDebug() << "Using internal zoom estimate:" << currentZoom;
     }
-
-    qDebug() << "Start moving zoom from" << currentZoom << "to" << targetZoom;
 
     const int MAX_STEPS = 500;
     int steps = 0;
 
     while (std::fabs(currentZoom - targetZoom) > 0.049f && steps < MAX_STEPS)
     {
+        if (abortZoom) return;
+
         ++steps;
         auto [step, delayMs] = computeStepAndDelay(currentZoom);
 
-        if (targetZoom < currentZoom) {
-            float next = std::max(targetZoom, currentZoom - step);
-            sendAbsoluteZoomCmdOnly(next);
-        } else {
-            float next = std::min(targetZoom, currentZoom + step);
-            sendAbsoluteZoomCmdOnly(next);
-        }
+        float next =
+            (targetZoom < currentZoom)
+                ? std::max(targetZoom, currentZoom - step)
+                : std::min(targetZoom, currentZoom + step);
 
+        sendAbsoluteZoomCmdOnly(next);
         QThread::msleep(delayMs);
     }
 
-    sendZoomStop();
-    sendAutoFocus();
+    if (!abortZoom)
+        sendZoomStop();
 
-    if (steps >= MAX_STEPS)
-        qDebug() << "Warning: reached MAX_STEPS without exact convergence. currentZoom =" << currentZoom;
-    else
-        qDebug() << "Zoom position reached:" << currentZoom << "in" << steps << "steps";
+    if (!abortZoom)
+        sendAutoFocus();
 }
 
 void ZR10ZoomControl::triggerAutoFocus()
@@ -216,21 +236,16 @@ void ZR10ZoomControl::triggerAutoFocus()
 
 void ZR10ZoomControl::sendManualFocusCmd(int8_t focusVal)
 {
-    uint8_t command[] = {
-        0x55, 0x66,
-        0x01,
-        0x01, 0x00,
-        0x00, 0x00,
-        0x06,
-        (uint8_t)focusVal
+    uint8_t cmd[] = {
+        0x55,0x66,0x01,0x01,0x00,0x00,0x00,0x06,(uint8_t)focusVal
     };
 
-    uint32_t crc_result;
-    crc_check_16bites(command, sizeof(command), &crc_result);
+    uint32_t crc;
+    crc_check_16bites(cmd, sizeof(cmd), &crc);
 
-    QByteArray packet(reinterpret_cast<const char*>(command), sizeof(command));
-    packet.append((char)(crc_result & 0xFF));
-    packet.append((char)((crc_result >> 8) & 0xFF));
+    QByteArray packet(reinterpret_cast<const char*>(cmd), sizeof(cmd));
+    packet.append((char)(crc & 0xFF));
+    packet.append((char)((crc >> 8) & 0xFF));
 
     sock.writeDatagram(packet, addr, sendPort);
 }
@@ -238,35 +253,14 @@ void ZR10ZoomControl::sendManualFocusCmd(int8_t focusVal)
 void ZR10ZoomControl::startManualFocusFar()
 {
     sendManualFocusCmd(1);
-    qDebug() << "Sent Manual Focus FAR command (0x06, 1)";
 }
 
 void ZR10ZoomControl::startManualFocusNear()
 {
     sendManualFocusCmd(-1);
-    qDebug() << "Sent Manual Focus NEAR command (0x06, -1)";
 }
 
 void ZR10ZoomControl::stopManualFocus()
 {
     sendManualFocusCmd(0);
-    qDebug() << "Sent Manual Focus STOP command (0x06, 0)";
 }
-
-void ZR10ZoomControl::startZoomInThread(float zoomVal)
-{
-    QThread* thread = new QThread;
-    ZR10ZoomWorker* worker = new ZR10ZoomWorker(this);
-
-    worker->targetZoom = zoomVal;
-    worker->moveToThread(thread);
-
-    QObject::connect(thread, &QThread::started, worker, &ZR10ZoomWorker::runZoom);
-    QObject::connect(worker, &ZR10ZoomWorker::finished, thread, &QThread::quit);
-    QObject::connect(worker, &ZR10ZoomWorker::finished, worker, &QObject::deleteLater);
-    QObject::connect(thread, &QThread::finished, thread, &QThread::deleteLater);
-
-    thread->start();
-    qDebug() << " Started zoom thread for target =" << zoomVal;
-}
-
